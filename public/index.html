@@ -1,0 +1,215 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>ChatApp</title>
+        <link rel="stylesheet" href="styles.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,1,0" />
+        <!-- <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script> -->
+        <script src="/socket.io/socket.io.js"></script>
+        <script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+        <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+        
+        
+        <meta http-equiv="content-type" content="text/html;charset=UTF-8"/>
+
+        <script>
+            
+            const MESSAGE_TYPES = {
+                TIME: 0,
+                GLOBAL_COUNTER: 1,
+                IP_ADDRESSES: 2,
+            }
+            var port = 3000;
+            var localCounter = 0;
+            var timeVisible = false;
+            //var socket = io(`ws://localhost:${port}`);
+            var socket = io();
+            var ipAddressesSet=[];
+
+            // function asyncEmit(eventName, data) {
+            //     return new Promise(function (resolve, reject) {
+            //         socket.emit(eventName, data);
+            //         socket.on(eventName, result => {
+            //         socket.off(eventName);
+            //         resolve(result);
+            //     });
+            //     setTimeout(reject, 1000);
+            //     });
+            // }
+
+            socket.on("connect", async () => {
+                socket.emit('init', '');
+            });
+
+
+            function getTimeFromServer() {
+                //event.preventDefault();
+                const message = {
+                    type: MESSAGE_TYPES.TIME,
+                    data: ''
+                };
+                console.log('Client: ' + message.type);
+                socket.emit('message',message);
+            }
+
+            socket.on('message', (message) => {
+                switch (message.type) {
+                    case MESSAGE_TYPES.TIME:
+                        handleTimeResponse(message.data);
+                        break;
+                    case MESSAGE_TYPES.GLOBAL_COUNTER:
+                        handleCounterBroadcast(message.data);
+                        break;
+                    case MESSAGE_TYPES.IP_ADDRESSES:
+                        handleIPaddresses(message.data);
+                        break;
+                    default:
+                        console.error(`Unrecognized message type 2: ${message.type}`);
+                }
+            });
+            
+            function incrementLocalCounter() {
+                let localCounterField = document.getElementById("localCounterField");
+                localCounter += 1;
+                localCounterField.innerHTML= localCounter;
+            }
+
+            function incrementGlobalCounter() {
+                socket.emit('message',{
+                    type: MESSAGE_TYPES.GLOBAL_COUNTER,
+                    data: ''
+                });
+            }
+
+            function handleCounterBroadcast(serverMessage) {
+                let globalCounterField = document.getElementById("globalCounterField");
+                globalCounterField.innerHTML= serverMessage;
+            }
+
+            function handleTimeResponse(serverMessage) {
+                let clockField = document.getElementById("clockField");
+                clockField.className = "counter_innerdiv";
+                clockField.innerText = serverMessage;
+                timeVisible = true;
+            }
+
+            function handleTimeClick(){
+                if(!timeVisible){
+                    getTimeFromServer();
+                }else{
+                    let clockField = document.getElementById("clockField");
+                    clockField.className = "";
+                    clockField.innerText = "click the clock";
+                    timeVisible = false;
+                }
+            }
+        </script>
+        
+    </head>
+    <body>
+        
+            <script>
+              if (confirm('Mit dem Betreten dieser Website wird ihre IP-Adresse erfasst und anonymisiert gespeichert. Möchten Sie diese Seite trotzdem besuchen? ')) {
+              
+              } else {
+                window.location = 'about:blank';
+              }
+            </script>
+      
+        <div class="container">
+            <div class="item" style="height:15%">
+                <button class=" turquise special_button" onclick="handleTimeClick()">
+                    <span class="material-symbols-outlined" style="font-size: 5rem;">
+                        schedule
+                    </span>
+                </button>
+                <div class="orange item" >
+                    <div  id="clockField" style="display: flex; margin:auto;justify-content: center; align-items: center; text-align: center;">
+                    <span>click the clock</span>
+                    </div>
+                </div>
+            </div>
+            <div class="itemExtra red"  style="display: flex; flex-direction: column; gap: 5px; padding-bottom: 10px;">
+                <span style="margin-top: 2vh; font-size: 3vh">
+                    Timeline of the last 10 visitor IP addresses (you can drag & zoom into it)
+                </span>
+                <div class="counter_innerdiv" style=" background-color: white;"><div id="visualization" ></div></div>
+                
+            </div>
+            <script type="text/javascript">
+                //https://visjs.github.io/vis-timeline/examples/timeline/
+                const timeline_container = document.getElementById("visualization");
+                // Create a DataSet (allows two way data-binding)
+                var items = new vis.DataSet();
+                let now = vis.moment();
+                const options = {
+                    width: '88vw',
+                    align: 'left',
+                    maxHeight: '50vh',
+                    showMajorLabels: true,
+                    showCurrentTime: false,
+                };
+                var timeline = new vis.Timeline(timeline_container, items, options);
+                
+                function handleIPaddresses(serverMessage) {
+                    items.clear();
+                    for (let i=0; i < serverMessage.length; i++){
+                        console.log(vis.moment.utc(serverMessage[i].start))
+                        items.add({
+                            id: i,
+                            content: serverMessage[i].ip + (serverMessage[i].end? '' : ' joins us'),
+                            start: vis.moment.utc(serverMessage[i].start),
+                            end: serverMessage[i].end? vis.moment.utc(serverMessage[i].end) : null,
+                            align: 'left',
+                            className: 'styleItem',
+                        })
+                    }
+                
+                    let {min, max} = timeline.getItemRange();
+                    //timeline.fit();
+                    timeline.setWindow(vis.moment(min).subtract(1, 'minutes'), vis.moment(max).add(10,'minutes'));
+            }
+            </script>
+            <div class="item" style="height:35%;">
+                <div class="item orange " id="first_div" >
+                    <div class="counter_div">
+                        <div style=" display: flex; flex-direction: row; margin:0; gap: 0; padding: 0;">
+                        <p style=" display: flex; margin:0">L</p>
+                        <button class="round_button"  onclick="incrementLocalCounter()">
+                            <b>+</b>  
+                        </button>
+                        <p style=" display: flex; margin:0;">cal </p>
+                        
+                        
+                    </div>
+                    <p style=" display: flex; margin:0;">Counter</p>
+                        <div class="counter_innerdiv" id="localCounterField">0</div>
+                    </div>
+                    <!-- <button class="round_button"  onclick="incrementLocalCounter()">
+                        <b>+</b>  
+                    </button> -->
+                </div>
+                <div class="item purple center" id="second_div">
+                    <span >
+                        DBI15
+                    </span>
+                </div>
+                <div class="item orange " id="third_div">
+                    <div class="counter_div">
+                        <div style=" display: flex; flex-direction: row; margin:0; gap: 0; padding: 0;">
+                        <p style=" display: flex; margin:0">Gl</p>
+                        <button class="round_button"  onclick="incrementGlobalCounter()">
+                            <b>+</b>  
+                        </button>
+                        <p style=" display: flex; margin:0;">bal </p>
+                    </div>
+                        <p style=" display: flex; margin:0">Counter</p>
+                        <div class="counter_innerdiv" id="globalCounterField">0</div>
+                    </div>
+                    
+                    
+                </div>
+          </div>
+    </body>
+</html>
